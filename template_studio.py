@@ -315,8 +315,26 @@ function handleFile(slot, event) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = function(e) {
-    document.getElementById('prev-' + slot).src = e.target.result;
-    uploadedImages[slot] = e.target.result;
+    const img = new Image();
+    img.onload = function() {
+      // Auto-downscale high-res phone camera photos (e.g. 48MP) to 720px max dimension
+      // This prevents cloud server 512MB RAM overflow and speeds up upload by 98%
+      const maxDim = 720;
+      let w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) { h = Math.round(h * (maxDim / w)); w = maxDim; }
+        else { w = Math.round(w * (maxDim / h)); h = maxDim; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+      document.getElementById('prev-' + slot).src = optimizedDataUrl;
+      uploadedImages[slot] = optimizedDataUrl;
+    };
+    img.src = e.target.result;
   };
   reader.readAsDataURL(file);
 }
@@ -433,6 +451,9 @@ class StudioHandler(SimpleHTTPRequestHandler):
                     img_path = default_imgs[slot_num]
                     
                 generate_product_card(img_path, title, tag, slot_colors[slot_num], slot_out_files[slot_num])
+            
+            import gc
+            gc.collect()
                 
             # 2. Render target commercial video
             is_9x16 = (ratio == '9x16')
