@@ -373,8 +373,11 @@ async function generateVideo() {
       
       const v = document.getElementById('result-video');
       v.src = data.video_url + '?t=' + Date.now();
-      document.getElementById('download-link').href = data.video_url;
-      document.getElementById('download-link').download = data.filename;
+      const dlBtn = document.getElementById('download-link');
+      dlBtn.onclick = function(e) {
+        e.preventDefault();
+        downloadVideoFile(data.video_url, data.filename);
+      };
       videoWrapper.style.display = 'block';
     } else {
       status.innerText = '❌ Error: ' + data.error;
@@ -383,6 +386,33 @@ async function generateVideo() {
     status.innerText = '❌ Render failed: ' + err.message;
   } finally {
     btn.disabled = false;
+  }
+}
+
+async function downloadVideoFile(url, defaultName) {
+  const btn = document.getElementById('download-link');
+  const oldText = btn.innerText;
+  btn.innerText = '⏳ Downloading video...';
+  try {
+    const res = await fetch(url + '?t=' + Date.now());
+    const blob = await res.blob();
+    const mp4Blob = new Blob([blob], { type: 'video/mp4' });
+    const blobUrl = window.URL.createObjectURL(mp4Blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = blobUrl;
+    a.download = defaultName || 'MOD_SOLE_Commercial.mp4';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      window.URL.revokeObjectURL(blobUrl);
+      a.remove();
+      btn.innerText = oldText;
+    }, 1500);
+  } catch (err) {
+    // Fallback direct navigation
+    window.location.href = url;
+    btn.innerText = oldText;
   }
 }
 </script>
