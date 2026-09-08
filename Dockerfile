@@ -14,8 +14,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application files
 COPY . .
 
-# Cloud platforms like Railway and Render set the PORT environment variable
-ENV PORT=8080
-EXPOSE 8080
+# Hugging Face Spaces & Cloud containers use PORT
+ENV PORT=7860
+EXPOSE 7860
 
 CMD ["python", "template_studio.py"]
