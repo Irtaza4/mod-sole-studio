@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__/
+*.pyc
+frames/
+output_preview/
+test_*.png
+test_*.mp4
+v1c044g50000d8on2r7og65sts4o9qt0.MP4
+.git
