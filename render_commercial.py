@@ -79,6 +79,20 @@ def load_and_trim(path):
         return im.crop(bbox)
     return im
 
+def scale_asset(img, target_w=None, target_h=None):
+    if img is None:
+        return None
+    w, h = img.size
+    if target_w is not None and target_h is None:
+        target_h = int(h * (target_w / float(w)))
+    elif target_h is not None and target_w is None:
+        target_w = int(w * (target_h / float(h)))
+    elif target_w is None and target_h is None:
+        return img
+    if w == int(target_w) and h == int(target_h):
+        return img
+    return img.resize((max(1, int(target_w)), max(1, int(target_h))), Image.BILINEAR)
+
 def draw_element(base_img, img, cx, cy, target_w=None, target_h=None, rot=0.0, alpha=1.0):
     if alpha <= 0.001:
         return
@@ -90,16 +104,20 @@ def draw_element(base_img, img, cx, cy, target_w=None, target_h=None, rot=0.0, a
     elif target_w is None and target_h is None:
         target_w, target_h = w, h
         
-    scaled = img.resize((max(1, int(target_w)), max(1, int(target_h))), Image.LANCZOS)
+    if w != int(target_w) or h != int(target_h):
+        scaled = img.resize((max(1, int(target_w)), max(1, int(target_h))), Image.BILINEAR)
+    else:
+        scaled = img
+        
     if abs(rot) > 0.01:
-        rotated = scaled.rotate(rot, resample=Image.BICUBIC, expand=True)
+        rotated = scaled.rotate(rot, resample=Image.BILINEAR, expand=True)
     else:
         rotated = scaled
         
     if alpha < 0.999:
         r, g, b, a = rotated.split()
-        a_arr = (np.array(a).astype(float) * alpha).astype(np.uint8)
-        rotated.putalpha(Image.fromarray(a_arr))
+        a = a.point(lambda p: int(p * alpha))
+        rotated = Image.merge('RGBA', (r, g, b, a))
         
     px = int(cx - rotated.width / 2.0)
     py = int(cy - rotated.height / 2.0)
@@ -203,10 +221,21 @@ def render_video(output_filename, width, height, is_vertical_9x16=False):
         outro_contacts_y = 1270
         outro_contacts_w = 980
 
+    # Pre-scale static elements once to eliminate thousands of resizes inside loop
+    for cname, cfg in cards_cfg.items():
+        cards[cname] = scale_asset(cards[cname], target_w=cfg["w"])
+    htitle = scale_asset(htitle, target_w=header_title_w)
+    urdu_s3 = scale_asset(urdu, target_w=urdu_s3_w)
+    eng_s3 = scale_asset(eng, target_w=eng_s3_w)
+    outro_urdu = scale_asset(urdu, target_w=outro_urdu_w)
+    outro_cta = scale_asset(cta, target_w=outro_cta_w)
+
     # Start ffmpeg
     cmd = [
-        'ffmpeg', '-y',
+        'ffmpeg',
+        '-y',
         '-f', 'rawvideo',
+        '-vcodec', 'rawvideo',
         '-pix_fmt', 'rgb24',
         '-s', f'{width}x{height}',
         '-r', str(fps),
@@ -214,8 +243,10 @@ def render_video(output_filename, width, height, is_vertical_9x16=False):
         '-i', 'bgm.aac',
         '-c:v', 'libx264',
         '-pix_fmt', 'yuv420p',
-        '-preset', 'fast',
-        '-crf', '18',
+        '-preset', 'ultrafast',
+        '-tune', 'zerolatency',
+        '-threads', '0',
+        '-crf', '20',
         '-c:a', 'aac',
         '-b:a', '192k',
         '-shortest',
