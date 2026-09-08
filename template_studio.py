@@ -395,11 +395,23 @@ async function generateVideo() {
 # -------------------------------------------------------------------
 class StudioHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
-        if self.path == '/' or self.path == '/index.html':
+        clean_path = self.path.split('?')[0].lstrip('/')
+        if self.path == '/' or self.path == '/index.html' or clean_path == '':
             self.send_response(200)
             self.send_header('Content-Type', 'text/html; charset=utf-8')
             self.end_headers()
             self.wfile.write(HTML_PAGE.encode('utf-8'))
+        elif clean_path.endswith('.mp4'):
+            if os.path.exists(clean_path):
+                self.send_response(200)
+                self.send_header('Content-Type', 'video/mp4')
+                self.send_header('Content-Disposition', f'attachment; filename="{clean_path}"')
+                self.send_header('Content-Length', str(os.path.getsize(clean_path)))
+                self.end_headers()
+                with open(clean_path, 'rb') as f:
+                    self.wfile.write(f.read())
+            else:
+                self.send_error(404, "Video file not found")
         else:
             super().do_GET()
 
